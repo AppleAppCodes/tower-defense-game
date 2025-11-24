@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Festung Verteidigen</title>
+    <title>Festung Verteidigen V2</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -43,11 +43,12 @@
             left: 50%;
             transform: translateX(-50%);
             display: flex;
-            gap: 20px;
-            font-size: 1.2rem;
+            gap: 15px;
+            font-size: 1.1rem;
             font-weight: bold;
             z-index: 10;
             white-space: nowrap;
+            align-items: center;
         }
         #bottom-bar {
             bottom: 20px;
@@ -67,7 +68,7 @@
             border-radius: 6px;
             cursor: pointer;
             transition: all 0.2s;
-            min-width: 80px;
+            min-width: 70px;
         }
         .tower-btn:hover {
             background: #4b5563;
@@ -85,7 +86,7 @@
         }
         .price-tag {
             color: #fbbf24;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             margin-top: 4px;
         }
         #game-over-screen {
@@ -117,6 +118,9 @@
         .icon-sniper { background: #a855f7; border: 2px solid white; }
         .icon-rapid { background: #f97316; border: 2px solid white; }
 
+        /* Stat display styling */
+        .stat-box { display: flex; align-items: center; gap: 4px; }
+
     </style>
 </head>
 <body>
@@ -124,9 +128,10 @@
 <div id="game-container">
     <!-- UI Top Bar -->
     <div id="top-bar" class="ui-panel">
-        <div style="color: #ef4444;">❤ <span id="lives-display">20</span></div>
-        <div style="color: #fbbf24;">⛁ <span id="money-display">100</span></div>
-        <div style="color: #e5e7eb;">Welle: <span id="wave-display">1</span></div>
+        <div class="stat-box" style="color: #ef4444;">❤ <span id="lives-display">20</span></div>
+        <div class="stat-box" style="color: #fbbf24;">⛁ <span id="money-display">250</span></div>
+        <div class="stat-box" style="color: #60a5fa;">★ <span id="score-display">0</span></div>
+        <div class="stat-box" style="color: #e5e7eb;">Welle: <span id="wave-display">1</span></div>
     </div>
 
     <!-- Canvas Game Layer -->
@@ -154,8 +159,9 @@
 
     <!-- Game Over Screen -->
     <div id="game-over-screen">
-        <h1 class="text-4xl font-bold text-red-500 mb-4">Spiel Vorbei!</h1>
-        <p class="text-xl text-white">Du hast bis Welle <span id="final-wave">0</span> überlebt.</p>
+        <h1 class="text-4xl font-bold text-red-500 mb-2">Spiel Vorbei!</h1>
+        <p class="text-xl text-white mb-2">Welle erreicht: <span id="final-wave" class="font-bold text-yellow-400">0</span></p>
+        <p class="text-2xl text-white">Score: <span id="final-score" class="font-bold text-blue-400">0</span></p>
         <button class="btn-primary" onclick="restartGame()">Neustart</button>
     </div>
 </div>
@@ -169,12 +175,10 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
 // --- Konfiguration ---
-const TILE_SIZE = 40; // Größe eines Quadrats im Raster
-const MAP_WIDTH = 20; // Anzahl Kacheln breit
-const MAP_HEIGHT = 15; // Anzahl Kacheln hoch
+const TILE_SIZE = 40; 
+const MAP_WIDTH = 20; 
+const MAP_HEIGHT = 15; 
 
-// Definieren des Pfades (Wegpunkte auf dem Raster)
-// Gegner laufen von Punkt zu Punkt
 const PATH_POINTS = [
     {x: 0, y: 2},
     {x: 4, y: 2},
@@ -190,14 +194,15 @@ const PATH_POINTS = [
 
 // Spielzustand
 let gameState = {
-    money: 150,
+    money: 250, // Startgeld erhöht
+    score: 0,   // Score hinzugefügt
     lives: 20,
     wave: 1,
     gameOver: false,
     enemies: [],
     towers: [],
     projectiles: [],
-    particles: [], // Für Explosionseffekte
+    particles: [],
     waveActive: false,
     enemiesToSpawn: 0,
     spawnTimer: 0,
@@ -213,7 +218,7 @@ const TOWER_TYPES = {
         damage: 20, 
         cooldown: 40, 
         color: '#3b82f6',
-        speed: 6 // Projectile speed
+        speed: 6 
     },
     rapid: { 
         name: 'Schnell', 
@@ -238,7 +243,6 @@ const TOWER_TYPES = {
 // --- Initialisierung ---
 
 function resizeCanvas() {
-    // Canvas Größe festlegen basierend auf Tile Size
     canvas.width = MAP_WIDTH * TILE_SIZE;
     canvas.height = MAP_HEIGHT * TILE_SIZE;
 }
@@ -253,7 +257,6 @@ class Enemy {
         this.targetX = PATH_POINTS[1].x * TILE_SIZE + TILE_SIZE/2;
         this.targetY = PATH_POINTS[1].y * TILE_SIZE + TILE_SIZE/2;
         
-        // Stats skalieren mit der Welle
         this.speed = 1.5 + (gameState.wave * 0.1); 
         this.maxHp = 30 + (gameState.wave * 15);
         this.hp = this.maxHp;
@@ -269,18 +272,14 @@ class Enemy {
         const dy = this.targetY - this.y;
         const dist = Math.hypot(dx, dy);
 
-        // Bewegung
         if (dist < this.speed) {
-            // Wegpunkt erreicht
             this.pathIndex++;
             if (this.pathIndex >= PATH_POINTS.length - 1) {
-                // Ende erreicht
                 gameState.lives--;
                 updateUI();
                 if (gameState.lives <= 0) endGame();
-                return false; // Enemy should be removed
+                return false; 
             }
-            // Nächstes Ziel setzen
             this.targetX = PATH_POINTS[this.pathIndex + 1].x * TILE_SIZE + TILE_SIZE/2;
             this.targetY = PATH_POINTS[this.pathIndex + 1].y * TILE_SIZE + TILE_SIZE/2;
         } else {
@@ -288,11 +287,11 @@ class Enemy {
             this.x += (dx / dist) * moveSpeed;
             this.y += (dy / dist) * moveSpeed;
         }
-        return true; // Enemy still alive
+        return true; 
     }
 
     draw() {
-        ctx.fillStyle = `hsl(${0 + (this.hp/this.maxHp)*120}, 100%, 50%)`; // Grün (voll) zu Rot (leer)
+        ctx.fillStyle = `hsl(${0 + (this.hp/this.maxHp)*120}, 100%, 50%)`; 
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fill();
@@ -300,7 +299,6 @@ class Enemy {
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        // Kleiner Lebensbalken
         ctx.fillStyle = 'red';
         ctx.fillRect(this.x - 10, this.y - 20, 20, 4);
         ctx.fillStyle = '#00ff00';
@@ -311,9 +309,10 @@ class Enemy {
         this.hp -= amount;
         if (this.hp <= 0) {
             gameState.money += this.bounty;
+            gameState.score += 1; // Score erhöhen beim Kill
             createParticles(this.x, this.y, 5, '#ff0000');
             updateUI();
-            return true; // Died
+            return true; 
         }
         return false;
     }
@@ -321,8 +320,8 @@ class Enemy {
 
 class Tower {
     constructor(c, r, type) {
-        this.c = c; // Grid Column
-        this.r = r; // Grid Row
+        this.c = c; 
+        this.r = r; 
         this.x = c * TILE_SIZE + TILE_SIZE/2;
         this.y = r * TILE_SIZE + TILE_SIZE/2;
         this.type = type;
@@ -334,15 +333,12 @@ class Tower {
     update() {
         if (this.cooldownTimer > 0) this.cooldownTimer--;
 
-        // Zielsuche
         let target = null;
         let minDist = Infinity;
 
-        // Finde den Gegner, der am weitesten auf dem Pfad ist und in Reichweite
         for (const enemy of gameState.enemies) {
             const dist = Math.hypot(enemy.x - this.x, enemy.y - this.y);
             if (dist <= this.stats.range) {
-                // Einfache Logik: Nimm den nächsten
                 if (dist < minDist) {
                     minDist = dist;
                     target = enemy;
@@ -351,7 +347,6 @@ class Tower {
         }
 
         if (target) {
-            // Drehung zum Ziel
             this.angle = Math.atan2(target.y - this.y, target.x - this.x);
 
             if (this.cooldownTimer <= 0) {
@@ -366,19 +361,16 @@ class Tower {
     }
 
     draw() {
-        // Basis
         ctx.fillStyle = '#4b5563';
         ctx.fillRect(this.c * TILE_SIZE + 5, this.r * TILE_SIZE + 5, TILE_SIZE - 10, TILE_SIZE - 10);
 
-        // Drehbarer Teil
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
         
         ctx.fillStyle = this.stats.color;
-        // Turm Design je nach Typ
         if (this.type === 'sniper') {
-            ctx.fillRect(-5, -5, 25, 10); // Langes Rohr
+            ctx.fillRect(-5, -5, 25, 10); 
             ctx.beginPath();
             ctx.arc(0, 0, 8, 0, Math.PI * 2);
             ctx.fill();
@@ -389,7 +381,7 @@ class Tower {
             ctx.arc(0, 0, 10, 0, Math.PI * 2);
             ctx.fill();
         } else {
-            ctx.fillRect(0, -4, 18, 8); // Standard Rohr
+            ctx.fillRect(0, -4, 18, 8); 
             ctx.beginPath();
             ctx.arc(0, 0, 10, 0, Math.PI * 2);
             ctx.fill();
@@ -408,7 +400,6 @@ class Projectile {
         this.damage = stats.damage;
         this.color = stats.color;
         
-        // Vorhersage wo der Gegner sein wird (einfach)
         const angle = Math.atan2(target.y - y, target.x - x);
         this.vx = Math.cos(angle) * this.speed;
         this.vy = Math.sin(angle) * this.speed;
@@ -418,25 +409,19 @@ class Projectile {
         this.x += this.vx;
         this.y += this.vy;
 
-        // Treffererkennung (einfach Radius Check zum ursprünglichen Ziel oder irgendeinem Gegner)
-        // Hier prüfen wir nur Distanz zum aktuellen Ziel für Verfolgungsraketen-Effekt oder einfach Position
-        
-        // Einfache Hitbox: Treffe irgendwas in der Nähe
         for (let i = gameState.enemies.length - 1; i >= 0; i--) {
             const enemy = gameState.enemies[i];
             const dist = Math.hypot(enemy.x - this.x, enemy.y - this.y);
             if (dist < enemy.radius + 5) {
-                // Hit!
                 const died = enemy.takeDamage(this.damage);
                 if (died) {
                     gameState.enemies.splice(i, 1);
                 }
                 createParticles(this.x, this.y, 3, this.color);
-                return false; // Projectile destroyed
+                return false; 
             }
         }
 
-        // Out of bounds check
         if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) {
             return false;
         }
@@ -472,41 +457,35 @@ function createParticles(x, y, count, color) {
 function update() {
     if (gameState.gameOver) return;
 
-    // Wave Spawning
     if (gameState.waveActive) {
         if (gameState.enemiesToSpawn > 0) {
             gameState.spawnTimer--;
             if (gameState.spawnTimer <= 0) {
                 gameState.enemies.push(new Enemy(gameState.wave));
                 gameState.enemiesToSpawn--;
-                gameState.spawnTimer = 40; // Frames zwischen Spawns
+                gameState.spawnTimer = 40; 
             }
         } else if (gameState.enemies.length === 0) {
-            // Welle vorbei
             gameState.waveActive = false;
             document.getElementById('next-wave-btn').innerText = "Welle Starten";
             document.getElementById('next-wave-btn').disabled = false;
         }
     }
 
-    // Update Enemies
     for (let i = gameState.enemies.length - 1; i >= 0; i--) {
         if (!gameState.enemies[i].update()) {
             gameState.enemies.splice(i, 1);
         }
     }
 
-    // Update Towers
     gameState.towers.forEach(t => t.update());
 
-    // Update Projectiles
     for (let i = gameState.projectiles.length - 1; i >= 0; i--) {
         if (!gameState.projectiles[i].update()) {
             gameState.projectiles.splice(i, 1);
         }
     }
 
-    // Update Particles
     for (let i = gameState.particles.length - 1; i >= 0; i--) {
         let p = gameState.particles[i];
         p.x += p.vx;
@@ -517,18 +496,17 @@ function update() {
 }
 
 function draw() {
-    // Clear
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw Map (Grass)
-    ctx.fillStyle = '#4ade80'; // Bright green
+    // Map
+    ctx.fillStyle = '#4ade80'; 
     ctx.fillRect(0,0, canvas.width, canvas.height);
 
-    // Draw Path
+    // Path
     ctx.lineWidth = TILE_SIZE * 0.8;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#d6d3d1'; // Dirt path color
+    ctx.strokeStyle = '#d6d3d1'; 
     
     ctx.beginPath();
     ctx.moveTo(PATH_POINTS[0].x * TILE_SIZE + TILE_SIZE/2, PATH_POINTS[0].y * TILE_SIZE + TILE_SIZE/2);
@@ -537,28 +515,20 @@ function draw() {
     }
     ctx.stroke();
 
-    // Draw Path Outline (for better visuals)
     ctx.lineWidth = 2;
     ctx.strokeStyle = '#a8a29e';
     ctx.stroke();
 
-    // Start & End
-    ctx.fillStyle = '#ef4444'; // Start Red
+    ctx.fillStyle = '#ef4444'; 
     ctx.font = '20px Arial';
     ctx.fillText('START', PATH_POINTS[0].x * TILE_SIZE, PATH_POINTS[0].y * TILE_SIZE);
-    ctx.fillStyle = '#3b82f6'; // End Blue
+    ctx.fillStyle = '#3b82f6'; 
     ctx.fillText('ZIEL', PATH_POINTS[PATH_POINTS.length-1].x * TILE_SIZE, PATH_POINTS[PATH_POINTS.length-1].y * TILE_SIZE);
 
-    // Draw Towers
     gameState.towers.forEach(t => t.draw());
-
-    // Draw Enemies
     gameState.enemies.forEach(e => e.draw());
-
-    // Draw Projectiles
     gameState.projectiles.forEach(p => p.draw());
 
-    // Draw Particles
     gameState.particles.forEach(p => {
         ctx.fillStyle = p.color;
         ctx.globalAlpha = p.life / 20;
@@ -566,22 +536,17 @@ function draw() {
         ctx.globalAlpha = 1;
     });
 
-    // Draw Placement Ghost (if selecting)
     if (gameState.selectedTowerType && !gameState.gameOver) {
         const stats = TOWER_TYPES[gameState.selectedTowerType];
         
-        // Mouse Grid Pos (global variables updated in event listener)
         if(mouseX && mouseY) {
             const c = Math.floor(mouseX / TILE_SIZE);
             const r = Math.floor(mouseY / TILE_SIZE);
-
-            // Valid Position Check
             const isValid = isValidPlacement(c, r);
             
             ctx.fillStyle = isValid ? 'rgba(59, 130, 246, 0.5)' : 'rgba(239, 68, 68, 0.5)';
             ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
             
-            // Range Indicator
             ctx.beginPath();
             ctx.arc(c * TILE_SIZE + TILE_SIZE/2, r * TILE_SIZE + TILE_SIZE/2, stats.range, 0, Math.PI * 2);
             ctx.fillStyle = isValid ? 'rgba(255, 255, 255, 0.2)' : 'rgba(239, 68, 68, 0.2)';
@@ -629,39 +594,25 @@ canvas.addEventListener('click', (e) => {
             gameState.money -= cost;
             gameState.towers.push(new Tower(c, r, type));
             updateUI();
-            
-            // Optional: Deselect after placement? 
-            // gameState.selectedTowerType = null; 
-            // updateSelectionUI();
-        } else {
-            // Not enough money visual feedback could go here
         }
     }
 });
 
 function isValidPlacement(c, r) {
-    // Check bounds
     if (c < 0 || c >= MAP_WIDTH || r < 0 || r >= MAP_HEIGHT) return false;
 
-    // Check if on path
-    // Simple path check: distance to any path segment
-    // We treat path lines as "occupied"
     for (let i = 0; i < PATH_POINTS.length - 1; i++) {
         const p1 = PATH_POINTS[i];
         const p2 = PATH_POINTS[i+1];
         
-        // Check if point is on segment
-        // Vertical Segment
         if (p1.x === p2.x) {
             if (c === p1.x && r >= Math.min(p1.y, p2.y) && r <= Math.max(p1.y, p2.y)) return false;
         }
-        // Horizontal Segment
         else if (p1.y === p2.y) {
             if (r === p1.y && c >= Math.min(p1.x, p2.x) && c <= Math.max(p1.x, p2.x)) return false;
         }
     }
 
-    // Check if occupied by another tower
     if (gameState.towers.some(t => t.c === c && t.r === r)) return false;
 
     return true;
@@ -669,7 +620,7 @@ function isValidPlacement(c, r) {
 
 function selectTower(type) {
     if (gameState.selectedTowerType === type) {
-        gameState.selectedTowerType = null; // Deselect
+        gameState.selectedTowerType = null; 
     } else {
         gameState.selectedTowerType = type;
     }
@@ -685,7 +636,6 @@ function updateSelectionUI() {
             btn.classList.remove('selected');
         }
         
-        // Check money
         if (gameState.money < TOWER_TYPES[t].cost) {
             btn.classList.add('disabled');
         } else {
@@ -699,7 +649,7 @@ function forceNextWave() {
     
     gameState.waveActive = true;
     gameState.enemiesToSpawn = 5 + Math.floor(gameState.wave * 1.5);
-    gameState.wave++; // Prepare number for next display
+    gameState.wave++; 
     
     document.getElementById('next-wave-btn').innerText = "Welle Läuft...";
     document.getElementById('next-wave-btn').disabled = true;
@@ -709,6 +659,7 @@ function forceNextWave() {
 function updateUI() {
     document.getElementById('lives-display').innerText = gameState.lives;
     document.getElementById('money-display').innerText = gameState.money;
+    document.getElementById('score-display').innerText = gameState.score;
     document.getElementById('wave-display').innerText = gameState.waveActive ? gameState.wave - 1 : gameState.wave;
     updateSelectionUI();
 }
@@ -717,10 +668,12 @@ function endGame() {
     gameState.gameOver = true;
     document.getElementById('game-over-screen').style.display = 'flex';
     document.getElementById('final-wave').innerText = gameState.wave - 1;
+    document.getElementById('final-score').innerText = gameState.score;
 }
 
 function restartGame() {
-    gameState.money = 150;
+    gameState.money = 250; // Reset auf 250
+    gameState.score = 0;   // Reset Score
     gameState.lives = 20;
     gameState.wave = 1;
     gameState.gameOver = false;
@@ -737,7 +690,6 @@ function restartGame() {
     updateUI();
 }
 
-// Start
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 updateUI();
